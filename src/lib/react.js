@@ -1,4 +1,4 @@
-import $ from 'jquery'
+import $, { type } from 'jquery'
 const React =  {
   render,
   createElement,
@@ -21,7 +21,7 @@ class ReactUnit {
 class ReactTextUnit extends ReactUnit {
   update(newEle) {
     if (this._currentElement !== newEle) {
-      $(`[data-reactid=${this._rootId}]`).html(newEle)
+      $(`[data-reactid="${this._rootId}"]`).replaceWith(newEle)
     }
   }
   getMarkup(id) {
@@ -76,7 +76,7 @@ class ReactNativeUnit extends ReactUnit {
   updateDomChildren(newChildrenElement) {
     const oldChildrenUnitMap = this.getOldChildrenMap()
     const newChildrenUnit = this.getNewChildren(oldChildrenUnitMap, newChildrenElement)
-    this.diff(newChildrenUnit)
+    this.diff(oldChildrenUnitMap, newChildrenUnit)
   }
   getOldChildrenMap() {
     const children = this._currentChildrenUnit
@@ -94,12 +94,14 @@ class ReactNativeUnit extends ReactUnit {
     newChildElements.forEach((newChildElement, i) => {
       const newChildKey = newChildElement.props?.key || i
       const oldChildUnit = oldChildrenUnitMap.get(newChildKey)
-      if( shouldDeepCompare(oldChildUnit, newChildKey) ) {
+      const oldElement = oldChildUnit && oldChildUnit._currentElement
+      if( shouldDeepCompare(oldElement, newChildElement) ) {
         oldChildUnit.update(newChildElement)
-        newChildrenUnit(oldChildUnit)
+        newChildrenUnit.push(oldChildUnit)
         this._currentChildrenUnit[i] = oldChildUnit
       } else {
         const newChildUnit = createReactUnit(newChildElement)
+        newChildUnit.index = i
         newChildrenUnit.push(newChildUnit)
         this._currentChildrenUnit[i] = newChildUnit
       }
@@ -108,10 +110,10 @@ class ReactNativeUnit extends ReactUnit {
     console.log('newChildrenUnit', newChildrenUnit)
     return newChildrenUnit
   }
-  diff (newChildrenUnit) {
+  diff (oldChildrenUnitMap, newChildrenUnit) {
     let diffQueue = []
     let lastIndex = 0
-    const oldChildMap = this.getOldChildrenMap()
+    const oldChildMap = oldChildrenUnitMap
     console.log('oldChildMap', oldChildMap)
     newChildrenUnit.forEach((newChild, i) => {
       const newChildKey = newChild.props?.key || i
@@ -230,7 +232,10 @@ class ReactCompositeUnit extends ReactUnit {
   }
 }
 function shouldDeepCompare(oldEle, newEle) {
-  if (typeof newEle !== typeof oldEle) {
+  if ((typeof newEle === 'string' || typeof newEle === 'number') && (typeof oldEle === 'string' || typeof oldEle === 'number')) {
+    return true
+  }
+  if ((typeof newEle) !== (typeof oldEle)) {
     return false
   }
   if (newEle instanceof Element && oldEle instanceof Element ) {
